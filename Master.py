@@ -1,186 +1,152 @@
 import random as rand
-
-noPlayers = 0
-noDecks = 1
-players = []
-playedCards = []
-snap = False
-gameOver = False
-snappers = [None]*2                                  # the two contending for snap()
-totalCards = 0
-whoHasNoCards = 0;
+from operator import attrgetter
 
 
-#AH is Ace of Hearts. Could have made a class with suit and number attributes, but this is much quicker.
+# AH is Ace of Hearts. Could have made a class with suit and number attributes, but this is much quicker.
 deck = ["AS", "2S", "3S", "4S", "5S", "6S", "7S", "8S", "9S", "10S", "JS", "QS", "KS",
         "AH", "2H", "3H", "4H", "5H", "6H", "7H", "8H", "9H", "10H", "JH", "QH", "KH",
         "AC", "2C", "3C", "4C", "5C", "6C", "7C", "8C", "9C", "10C", "JC", "QC", "KC",
         "AD", "2D", "3D", "4D", "5D", "6D", "7D", "8D", "9D", "10D", "JD", "QD", "KD"]
 
+
 class Player:
-    def __init__(self):
-        self.hand = [None]*(int(len(deck) / noPlayers))
-        self.minReactionTime = 0.2                      # included so you can easily make some players stronger than others
-        self.maxReactionTime = 0.4
-        self.reactionTime = self.maxReactionTime
-        self.name = 0
+    def __init__(self, hand=None, min_reaction_time=0.2, max_reaction_time=0.4, name=0):
+        if hand is None:
+            self.hand = []
+        else:
+            self.hand = hand
+        self.min_reaction_time = min_reaction_time
+        self.max_reaction_time = max_reaction_time
+        self.name = name
 
-    def playCard(self):
-            playedCards.append(self.hand[0])                # play your top card
-            print("Player ", self.name, "plays ", self.hand[0])
-            self.hand.remove(self.hand[0])                  # remove that card from your hand
+    def play_card(self, played_cards):
+        played_cards.append(self.hand.pop(0))
+        print("Player ", self.name, "has ", len(self.hand)+1, " cards in their hand. They play ", played_cards[-1], ".")
+        return played_cards
 
+    def pick_up(self, played_cards):
+        print("Player ", self.name, " has picked up ", len(played_cards), " cards!")
+        while len(played_cards) > 0:
+            self.hand.append(played_cards.pop(-1))
 
-    def pickUp(self):                                   #TODO: check pickUp() works.
-        global playedCards
-        for i in range(len(playedCards)):
-            self.hand.append(playedCards[i])
-        print("Player ", self.name, " has picked up ", len(playedCards), " cards!")
-        playedCards = []
+    def get_reaction_time(self):                                                         # so players have varying chances of winning
+        reaction_time = rand.uniform(self.min_reaction_time, self.max_reaction_time)     # pick random reaction time between min + max
+        print("Player ", self.name, "said 'Snap!' in ", reaction_time, " seconds.")
+        return reaction_time
 
-    def saySnap(self):                                  # so players have varying chances of winning
-        self.reactionTime = rand.uniform(self.minReactionTime, self.maxReactionTime)  # pick random reaction time between min + max
-        print("Player ", self.name, "said 'Snap!' in ", self.reactionTime, " seconds.")
-
-#-----------------------------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------------
 # GAME START
 
-def howManyPlayers():
-    global noPlayers
-    noPlayers = input("How many players are in the game? ")
-    try:
-        noPlayers = int(noPlayers)                                                          # turning string to int + accept integers
-        print("Excellent. The number of players is ", noPlayers)
-    except ValueError:
-        print("Please type an integer number.")                                             # don't accept non-integers
-        howManyPlayers()
 
-def howManyDecks():                                                                         # v similar to howManyPlayers()
-    global deck
-    global noDecks
-    global totalCards
-    tempDeck = deck
-    noDecks = input("How many decks are in the game? ")
+def get_num_players():
+    num_players = input("How many players are in the game? ")
     try:
-        noDecks = int(noDecks)
-        print("Great! There will be ", noPlayers, " players playing with ", noDecks, " decks.")
+        num_players = int(num_players)                                                        # turning string to int + accept integers
+        print("Excellent. The number of players is ", num_players)
+    except ValueError:
+        print("Please type an integer number.")                                               # don't accept non-integers
+        get_num_players()
+    return num_players
+
+
+def get_num_decks(players):                                                                   # v similar to howManyPlayers()
+    num_decks = input("How many decks are in the game? ")
+    try:
+        num_decks = int(num_decks)
+        print("Great! There will be ", len(players), " players playing with ", num_decks, " decks.")
     except ValueError:
         print("Please type an integer number.")
-        howManyDecks()
+        get_num_decks(players)
+    return num_decks
 
-    for i in range(noDecks):
-        for i in range(len(deck)):
-            tempDeck.append(deck[i])               # add number of decks to dummy variable
-    deck = tempDeck                         # make dummy variable the deck.
-    totalCards = len(deck)
 
-def createPlayers():
-    global players
-    players = [None]*noPlayers              # create list of players
-    for i in range(0, noPlayers):
-        players[i] = Player()               # populate list
-        players[i].name = i
+def make_play_deck(deck, num_decks):
+    return [deck[i % len(deck)] for i in range(len(deck)*num_decks)]
 
-def calculateHandSize():
-    for i in range(len(deck) % noPlayers):  # leftover cards, that dont divide evenly by no. of players
-        players[i].hand.append(None)        # add an extra card. Makes total cards add to 52.
 
-def shuffleDeck():
-    rand.shuffle(deck)
+def make_players(num_players):
+    return [Player(name=i) for i in range(num_players)]
+
+def shuffle_deck(deck):
     print("The deck has been shuffled.")
+    rand.shuffle(deck)
 
 
-def dealCards():
-    global players
-    for i in range(len(deck)):              # cycling through the cards
-        j = i % noPlayers                   # which player is drawing the card
-        cardsInHand = int(i/noPlayers)      # opposite of modulo - smallest number of cards in players' hand
-        players[j].hand[cardsInHand] = deck[i]
+def deal_cards(players):
+    for i in range(len(deck)):                     # cycling through the cards
+        turn = i % len(players)                    # which player is drawing the card
+        players[turn].hand.append(deck.pop(0))
     print("Each player has now been dealt their hand.")
 
-def GameStart():
-    howManyPlayers()
-    howManyDecks()
-    createPlayers()
-    calculateHandSize()
-    shuffleDeck()
-    dealCards()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------------
 # GAME PLAY
 
-def checkSnap():
-    global snap
-    global playedCards
-    if len(playedCards) > 1:
-        if playedCards[len(playedCards) - 1][0] == playedCards[len(playedCards) - 2][0]:        # if first element of last card matches first element of penultimate card
-            snap = True
+def is_snap(played_cards):
+    if len(played_cards) > 1:
+        if played_cards[len(played_cards) - 1][0] is played_cards[len(played_cards) - 2][0]:        # if first element of last card matches first element of penultimate card
             print("The cards match!")
-
-def checkWinLoss():
-    global players
-    global noPlayers
-    global totalCards
-    global gameOver
-    global whoHasNoCards
-    index = 0
-
-    for i in range(noPlayers):
-
-        if len(players[i].hand) == totalCards or len(players) == 1:
-            gameOver = True
-            print("Player ", players[i].name, " is the winner!")
-
-        if len(players[i].hand) == 0:
-            index = i                                           # use this dummy variable to mark which player is out.
-            noPlayers = noPlayers - 1
-            print("Player ", players[i].name, " is out!")
-
-    if len(players[index].hand) == 0:
-        players.remove(players[index])                          # then get rid of the player (can't do it in the for loop)
+            return True
+        else:
+            return False
 
 
-
-def playRound():
-    global noPlayers
-    global gameOver
-    global snap
-    global snappers
-    global playedCards
-    global whoHasNoCards
-    reactionTimes = [None]*noPlayers
-
-    for i in range(noPlayers):
-        players[i].playCard()
-        checkSnap()
-
-        if(snap):                                               # if snap is true
-            snappers[0] = players[i]                            # player that played + previous player are contending.
-            if(i == 0):                                         # if player 0 just played
-                snappers[1] = players[len(players) - 1]         # final player contends with them
-            else:
-                snappers[1] = players[i-1]                      # otherwise it's the player before the one that played.
-
-            for i in range(noPlayers):
-                players[i].saySnap()                            # each player says snap
-                reactionTimes[i] = players[i].reactionTime
-
-            for i in range(len(reactionTimes)):
-                if reactionTimes[i] == min(reactionTimes):      # take the index of the minimum reaction time
-                    players[i].pickUp()                         # that player picks up the cards.
-                    snap = False
-
-    checkWinLoss()                                              # check if any players win/have no cards at the end of the round.
+def is_game_over(players):
+    if len(players) is 1:
+        print("Player ", players[0].name, " is the winner!")
+        return True
+    else:
+        return False
 
 
-def PlayGame():
-    while(gameOver == False):
-        playRound()
-#-----------------------------------------------------------------------------------------------------------------------
-
-GameStart()
-PlayGame()
+def player_is_out(players):
+    for player in players:
+        if len(player.hand) is 0:
+            return player
+        #return False
 
 
+def play_game(players):
+    played_cards = []
+    while not is_game_over(players):
+        for player in players:
+
+            #if player_is_out(players):
+            #    print("Player ", player_is_out(players).name, " can't play - they're out!")
+            #    players.remove(player_is_out(players))
+            #    #players = [player for player in players if player is not player_is_out(players)]   #TODO: after player goes out, it's the wrong player's turn
+            #else:
+            #    played_cards = player.play_card(played_cards)
+
+            try:
+                played_cards = player.play_card(played_cards)
+            except IndexError:
+                print("Player ", player_is_out(players).name, " can't play - they're out!")        #TODO: after player goes out, it's the wrong player's turn
+                players.remove(player_is_out(players))
+
+            if is_snap(played_cards):
+                fastest_reaction = max(players, key=attrgetter('max_reaction_time')).max_reaction_time
+                for snapper in players:
+                    player_reaction = snapper.get_reaction_time()
+                    if player_reaction < fastest_reaction:
+                        fastest_reaction = player_reaction
+                        winning_snapper = snapper
+                    elif player_reaction is fastest_reaction:
+                        winning_snapper
+                winning_snapper.pick_up(played_cards)
+
+            if len(player.hand) is 1:
+                print(player.name)
 
 
+# -----------------------------------------------------------------------------------------------------------------------
+# GameStart Run
+num_players = get_num_players()
+players = make_players(num_players)
+num_decks = get_num_decks(players)
+deck = make_play_deck(deck, num_decks)
+shuffle_deck(deck)
+deal_cards(players)
+
+# GamePlay Run
+play_game(players)
